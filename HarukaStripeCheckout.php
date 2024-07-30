@@ -7,7 +7,8 @@ if (!defined("WHMCS")) {
 }
 
 
-function HarukaStripeCheckout_config() {
+function HarukaStripeCheckout_config()
+{
     return array(
         'FriendlyName' => array(
             'Type' => 'System',
@@ -29,40 +30,35 @@ function HarukaStripeCheckout_config() {
             'FriendlyName' => '退款扣除固定金额',
             'Type' => 'text',
             'Size' => 30,
-			'Default' => '0.00',
-			'Description' => '$'
+            'Default' => '0.00',
+            'Description' => '$'
         ),
         'RefundPercent' => array(
             'FriendlyName' => '退款扣除百分比金额',
             'Type' => 'text',
             'Size' => 30,
-			'Default' => '0.00',
-			'Description' => '%'
+            'Default' => '0.00',
+            'Description' => '%'
         )
     );
 }
 
-function HarukaStripeCheckout_link($params){
+function HarukaStripeCheckout_link($params)
+{
     try {
         $stripe = new Stripe\StripeClient($params['StripeSkLive']);
 
-        $price = $stripe->prices->create([
-            'currency' => $params['currency'],
-            'metadata' => [
-                'invoice_id' => $params['invoiceid'],
-                'original_amount' => $params['amount']
-            ],
-            'product_data' => ['name' => "invoiceID: ".$params['invoiceid']],
-            'unit_amount' => ceil($params['amount'] * 100.00),
-          ]);
-
         $checkout = $stripe->checkout->sessions->create([
-			'customer_email' => $params['clientdetails']['email'],
+            'customer_email' => $params['clientdetails']['email'],
             'line_items' => [
-              [
-                'price' => $price->id,
-                'quantity' => 1,
-              ],
+                [
+                    'price_data' => [
+                        'currency' => $params['currency'],
+                        'product_data' => ['name' => "invoiceID: " . $params['invoiceid']],
+                        'unit_amount' => ceil($params['amount'] * 100.00),
+                    ],
+                    'quantity' => 1
+                ],
             ],
             'metadata' => [
                 'invoice_id' => $params['invoiceid'],
@@ -70,12 +66,12 @@ function HarukaStripeCheckout_link($params){
             ],
             'mode' => 'payment',
             'success_url' => $params['systemurl'] . 'modules/gateways/harukastripecheckout/result.php?order_id=' . $params['invoiceid'],
-          ]);
-    } catch (Exception $e){
+        ]);
+    } catch (Exception $e) {
         return '<div class="alert alert-danger text-center" role="alert">支付网关错误，请联系客服进行处理</div>';
     }
     if ($checkout->payment_status == 'unpaid') {
-        return '<form action="'.$checkout['url'].'" method="get"><input type="submit" class="btn btn-primary" value="'.$params['langpaynow'].'" /></form>';
+        return '<form action="' . $checkout['url'] . '" method="get"><input type="submit" class="btn btn-primary" value="' . $params['langpaynow'] . '" /></form>';
     }
     return '<div class="alert alert-danger text-center" role="alert">发生错误，请创建工单联系客服处理</div>';
 }
