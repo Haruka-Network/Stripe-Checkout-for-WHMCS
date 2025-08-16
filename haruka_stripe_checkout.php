@@ -49,6 +49,7 @@ function haruka_stripe_checkout_config()
                 'wise' => 'Wise 源',
                 'visa' => 'Visa 源',
                 'unionpay' => '银联源',
+                'coinbase' => 'Coinbase 源',
             ),
             'Description' => '支持多种数据源，比较汇率：https://github.com/DyAxy/NewExchangeRatesTable/tree/main/data',
         ),
@@ -71,13 +72,13 @@ function haruka_stripe_checkout_config()
 
 function haruka_stripe_checkout_link($params)
 {
-    $exchange = checkout_exchange($params['currency'], strtoupper($params['StripeCurrency']), strtolower($params['ExchangeType']));
-    if (!$exchange) {
+    $exchange = haruka_stripe_checkout_exchange($params['StripeCurrency'], $params['currency'], strtolower($params['ExchangeType']));
+    if ($exchange < 0) {
         return '<div class="alert alert-danger text-center" role="alert">支付汇率错误，请联系客服进行处理</div>';
     }
-
+    
     // 验证支付金额是否满足最小要求
-    $validation = validate_stripe_amount($params['amount'], $params['StripeCurrency'], $exchange);
+    $validation = haruka_stripe_checkout_validate_amount($params['amount'], $params['StripeCurrency'], $exchange);
     if (!$validation['valid']) {
         return '<div class="alert alert-warning text-center" role="alert">' . $validation['error'] . '</div>';
     }
@@ -142,17 +143,26 @@ function haruka_stripe_checkout_refund($params)
     }
 }
 
-function checkout_exchange($from, $to, $type)
+function haruka_stripe_checkout_exchange($from, $to, $type)
 {
     try {
+        // Fetch Exchange Rates from a URL
         $url = 'https://raw.githubusercontent.com/DyAxy/NewExchangeRatesTable/main/data/' . $type . '.json';
-
         $result = file_get_contents($url, false);
+        if ($result === false) {
+            throw new Exception("Failed to fetch data from the URL.");
+        }
         $result = json_decode($result, true);
-        return $result['data'][strtoupper($to)] / $result['data'][strtoupper($from)];
+
+        // Extract currency rates
+        $toCurrency = $result['data'][strtoupper($to)];
+        $fromCurrency = $result['data'][strtoupper($from)];
+        if ($toCurrency < 0 || $fromCurrency < 0) {
+            throw new Exception("Invalid currency rate.");
+        }
+        return $toCurrency / $fromCurrency;
     } catch (Exception $e) {
-        echo "Exchange error: " . $e;
-        return "Exchange error: " . $e;
+        return -1; // Return 0 on error
     }
 }
 
@@ -161,7 +171,7 @@ function checkout_exchange($from, $to, $type)
  * 基于 Stripe 官方文档: https://docs.stripe.com/currencies#minimum-and-maximum-charge-amounts
  * 金额已转换为最小货币单位（分）
  */
-function stripe_minimum_amounts()
+function haruka_stripe_checkout_minimum_amounts_list()
 {
     return [
         'USD' => 50,      // $0.50
@@ -198,9 +208,9 @@ function stripe_minimum_amounts()
  * @param float $exchange 汇率
  * @return array 包含验证结果和错误信息
  */
-function validate_stripe_amount($amount, $currency, $exchange)
+function haruka_stripe_checkout_validate_amount($amount, $currency, $exchange)
 {
-    $minimumAmounts = stripe_minimum_amounts();
+    $minimumAmounts = haruka_stripe_checkout_minimum_amounts_list();
     $currencyUpper = strtoupper($currency);
 
     if (!isset($minimumAmounts[$currencyUpper])) {
