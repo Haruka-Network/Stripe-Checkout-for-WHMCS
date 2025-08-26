@@ -72,13 +72,16 @@ function haruka_stripe_checkout_config()
 
 function haruka_stripe_checkout_link($params)
 {
-    $exchange = haruka_stripe_checkout_exchange($params['StripeCurrency'], $params['currency'], strtolower($params['ExchangeType']));
-    if ($exchange < 0) {
+    $exchange = haruka_stripe_checkout_exchange($params['currency'], $params['StripeCurrency'], strtolower($params['ExchangeType']));
+    if (!$exchange) {
         return '<div class="alert alert-danger text-center" role="alert">支付汇率错误，请联系客服进行处理</div>';
     }
-    
+
+    // 计算转换后支付金额
+    $amount = floor($params['amount'] * $exchange * 100.00);
+
     // 验证支付金额是否满足最小要求
-    $validation = haruka_stripe_checkout_validate_amount($params['amount'], $params['StripeCurrency'], $exchange);
+    $validation = haruka_stripe_checkout_validate_amount($params['StripeCurrency'], $amount);
     if (!$validation['valid']) {
         return '<div class="alert alert-warning text-center" role="alert">' . $validation['error'] . '</div>';
     }
@@ -93,7 +96,7 @@ function haruka_stripe_checkout_link($params)
                     'price_data' => [
                         'currency' => $params['StripeCurrency'],
                         'product_data' => ['name' => "invoiceID: " . $params['invoiceid']],
-                        'unit_amount' => floor($params['amount'] * $exchange * 100.00),
+                        'unit_amount' => $amount,
                     ],
                     'quantity' => 1
                 ],
@@ -143,26 +146,87 @@ function haruka_stripe_checkout_refund($params)
     }
 }
 
+
+/**
+ * 汇率转换
+ * @param string $from 来源货币代码
+ * @param string $to 转换货币代码
+ * @param string $type 汇率源
+ */
 function haruka_stripe_checkout_exchange($from, $to, $type)
 {
     try {
+        // 基本输入清理与校验
+        $from = strtoupper(trim((string)$from));
+        $to = strtoupper(trim((string)$to));
+        if ($from === '' || $to === '' || $type === '') {
+            throw new Exception('Invalid parameters.');
+        }
+
         // Fetch Exchange Rates from a URL
         $url = 'https://raw.githubusercontent.com/DyAxy/NewExchangeRatesTable/main/data/' . $type . '.json';
-        $result = file_get_contents($url, false);
-        if ($result === false) {
-            throw new Exception("Failed to fetch data from the URL.");
-        }
-        $result = json_decode($result, true);
 
-        // Extract currency rates
-        $toCurrency = $result['data'][strtoupper($to)];
-        $fromCurrency = $result['data'][strtoupper($from)];
-        if ($toCurrency < 0 || $fromCurrency < 0) {
-            throw new Exception("Invalid currency rate.");
+        $curl = curl_init();
+        curl_setopt_array($curl, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 3,
+            CURLOPT_ENCODING => "", // 接受压缩
+            CURLOPT_CONNECTTIMEOUT => 2, // 秒级超时更兼容
+            CURLOPT_TIMEOUT => 5,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_HTTPHEADER => [
+                'Accept: application/json',
+            ],
+            CURLOPT_USERAGENT => 'WHMCS-Client/1.0',
+            CURLOPT_FAILONERROR => true, // 将 HTTP >=400 视为错误
+        ]);
+        // 强制 IPv4
+        curl_setopt($curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+
+        $body = curl_exec($curl);
+        if ($body === false) {
+            $err = curl_error($curl);
+            curl_close($curl);
+            throw new Exception("cURL error: {$err}");
         }
-        return $toCurrency / $fromCurrency;
+
+        $info = curl_getinfo($curl);
+        curl_close($curl);
+
+        // 检查 HTTP 状态码（防止 204/3xx/4xx 情况）
+        $httpCode = isset($info['http_code']) ? (int)$info['http_code'] : 0;
+        if ($httpCode < 200 || $httpCode >= 300) {
+            throw new Exception("Unexpected HTTP status: {$httpCode}");
+        }
+
+        // 解析 JSON 并校验结构
+        $json = json_decode($body, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new Exception('JSON decode error: ' . json_last_error_msg());
+        }
+        if (!isset($json['data']) || !is_array($json['data'])) {
+            throw new Exception('Malformed rate data.');
+        }
+
+        if (!isset($json['data'][$to]) || !isset($json['data'][$from])) {
+            throw new Exception('Currency not found in rate table.');
+        }
+
+        $toCurrency = $json['data'][$to];
+        $fromCurrency = $json['data'][$from];
+
+        // 确保为数值且大于 0
+        if (!is_numeric($toCurrency) || !is_numeric($fromCurrency) || $toCurrency <= 0 || $fromCurrency <= 0) {
+            throw new Exception("Invalid currency rate values.");
+        }
+
+        // 返回兑换比率（float）
+        return (float) $toCurrency / (float) $fromCurrency;
     } catch (Exception $e) {
-        return -1; // Return 0 on error
+        return false; // 统一错误返回 false
     }
 }
 
@@ -208,7 +272,7 @@ function haruka_stripe_checkout_minimum_amounts_list()
  * @param float $exchange 汇率
  * @return array 包含验证结果和错误信息
  */
-function haruka_stripe_checkout_validate_amount($amount, $currency, $exchange)
+function haruka_stripe_checkout_validate_amount($currency, $amount)
 {
     $minimumAmounts = haruka_stripe_checkout_minimum_amounts_list();
     $currencyUpper = strtoupper($currency);
@@ -220,16 +284,15 @@ function haruka_stripe_checkout_validate_amount($amount, $currency, $exchange)
         ];
     }
 
-    $convertedAmount = floor($amount * $exchange * 100);
     $minimumRequired = $minimumAmounts[$currencyUpper];
 
-    if ($convertedAmount < $minimumRequired) {
+    if ($amount < $minimumRequired) {
         $minimumDisplay = number_format($minimumRequired / 100, 2);
-        $currentDisplay = number_format($convertedAmount / 100, 2);
+        $currentDisplay = number_format($amount / 100, 2);
 
         return [
             'valid' => false,
-            'error' => "支付金额过小。"
+            'error' => "支付金额过小，货币 {$currency} 最低要求为 {$minimumDisplay}，当前为 {$currentDisplay}。"
         ];
     }
 
