@@ -120,28 +120,44 @@ function haruka_stripe_checkout_link($params)
 function haruka_stripe_checkout_refund($params)
 {
     $stripe = new Stripe\StripeClient($params['StripeSkLive']);
-    $amount = round(($params['amount'] - $params['RefundFixed']) / ($params['RefundPercent'] / 100 + 1), 2) * 100;
     try {
+        $responseData = $stripe->paymentIntents->retrieve($params['transid']);
+        // 获取实际支付金额和原始金额
+        $actualAmount = $responseData->amount_received;
+        $originalAmount = $params['amount'];
+        // whmcs 退款金额
+        $amount = ($originalAmount - $params['RefundFixed']) / ($params['RefundPercent'] / 100 + 1);
+        // whmcs 退款手续费
+        $fees = $originalAmount - $amount;
+        // stripe 退款金额
+        $amount = $amount / $originalAmount * $actualAmount;
+        $amount = round($amount, 2);
+
+        $validation = haruka_stripe_alipay_validate_amount($params['StripeCurrency'], $amount);
+        if (!$validation['valid']) {
+            throw new Exception($validation['error']);
+        }
+
         $responseData = $stripe->refunds->create([
             'payment_intent' => $params['transid'],
             'amount' => (int)$amount,
             'metadata' => [
                 'invoice_id' => $params['invoiceid'],
-                'original_amount' => $params['amount'],
+                'original_amount' => $responseData->metadata->original_amount,
             ]
         ]);
         return array(
-            'status' => ($responseData->status === 'succeeded') ? 'success' : 'error',
+            'status' => ($responseData->status === 'succeeded' || $responseData->status === 'pending') ? 'success' : 'error',
             'rawdata' => $responseData,
             'transid' => $params['transid'],
-            'fees' => $params['amount'],
+            'fees' => $fees,
         );
     } catch (Exception $e) {
         return array(
             'status' => 'error',
             'rawdata' => $e->getMessage(),
             'transid' => $params['transid'],
-            'fees' => $params['amount'],
+            'fees' => $fees,
         );
     }
 }
