@@ -11,9 +11,9 @@
  *        (async payment methods credit on checkout.session.async_payment_succeeded)
  *
  * The module keeps no state of its own: repeated clicks are deduplicated by
- * a Stripe idempotency key derived from the invoice and amount, whose ~24h
- * lifetime matches the default Checkout Session expiry, so the same click
- * resumes the same session while a changed amount naturally starts a new one.
+ * a Stripe idempotency key derived from the request payload, whose ~24h
+ * lifetime matches the default Checkout Session expiry, so an identical click
+ * resumes the same session while any parameter change starts a new one.
  *
  * @see https://docs.stripe.com/payments/checkout/how-checkout-works
  * @see https://docs.stripe.com/api/checkout/sessions
@@ -201,15 +201,6 @@ class StripeGateway
         $rate,
         $customerEmail
     ) {
-        // Same invoice + amount within ~24h -> same key -> Stripe replays the
-        // original session instead of creating a duplicate. A changed amount
-        // produces a new key and therefore a fresh session.
-        $idempotencyKey = 'hsc-cs-' . md5(implode('|', [
-            $invoiceId,
-            $minorAmount,
-            $stripeCurrency,
-        ]));
-
         $metadata = [
             self::META_INVOICE_ID => (string) $invoiceId,
             self::META_ORIGINAL_AMOUNT => (string) $whmcsAmount,
@@ -242,9 +233,21 @@ class StripeGateway
             'success_url' => $invoiceUrl,
             'cancel_url' => $invoiceUrl,
         ];
+
+        $descriptorSuffix = $this->config->statementDescriptorSuffix($invoiceId);
+        if ($descriptorSuffix !== '') {
+            $payload['payment_intent_data']['statement_descriptor_suffix'] = $descriptorSuffix;
+        }
         if ($customerEmail !== '') {
             $payload['customer_email'] = $customerEmail;
         }
+
+        // Key derived from the full payload: an identical click within ~24h
+        // replays the original session instead of creating a duplicate, while
+        // any parameter change (amount, exchange rate, email, descriptor)
+        // makes a new key — Stripe rejects reusing a key with a different
+        // payload, so deriving one from the other keeps them consistent.
+        $idempotencyKey = 'hsc-cs-' . md5(json_encode($payload));
 
         return $this->request('Checkout Session Create', function () use ($payload, $idempotencyKey) {
             return $this->client()->checkout->sessions->create(

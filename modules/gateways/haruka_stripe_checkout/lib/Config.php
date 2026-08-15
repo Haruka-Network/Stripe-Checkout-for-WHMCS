@@ -67,6 +67,37 @@ class Config
     }
 
     /**
+     * Dynamic statement descriptor suffix for card charges, shown on the
+     * cardholder's statement after the account's descriptor prefix.
+     *
+     * Cards no longer accept a full statement_descriptor override on the
+     * PaymentIntent (Stripe rejects it), so the suffix is the only safe
+     * per-charge field; non-card methods ignore it. The configured template
+     * may contain {invoice}, replaced with the invoice id. The result is
+     * sanitised to Stripe's rules: printable ASCII without < > \ ' " *,
+     * at most 22 characters, and at least one letter — otherwise ''.
+     *
+     * @see https://docs.stripe.com/get-started/account/statement-descriptors
+     *
+     * @param int|string $invoiceId
+     * @return string Sanitised suffix, or '' to leave the account default
+     */
+    public function statementDescriptorSuffix($invoiceId)
+    {
+        $template = trim((string) ($this->params['StatementDescriptor'] ?? ''));
+        if ($template === '') {
+            return '';
+        }
+
+        $suffix = str_replace('{invoice}', (string) $invoiceId, $template);
+        $suffix = preg_replace('/[^\x20-\x7E]/', '', $suffix);
+        $suffix = str_replace(['<', '>', '\\', "'", '"', '*'], '', $suffix);
+        $suffix = trim(substr(trim($suffix), 0, 22));
+
+        return preg_match('/[A-Za-z]/', $suffix) ? $suffix : '';
+    }
+
+    /**
      * @return float Fixed fee deducted from refunds, in invoice currency
      */
     public function refundFixedFee()

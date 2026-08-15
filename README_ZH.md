@@ -41,6 +41,7 @@ modules/gateways/
    | Webhook 签名密钥 | Webhook 端点的 `whsec_...` |
    | 发起交易货币 | 向 Stripe 请求使用的货币，需为 Stripe 账户支持的交易货币 |
    | 汇率数据源 | 账单货币 → 交易货币的换算数据源 |
+   | 账单描述后缀 | 卡类支付显示在持卡人对账单上的动态后缀（`{invoice}` 替换为账单号），跟在 Stripe 后台的描述前缀之后；留空则使用账户默认 |
    | 退款扣除固定金额 / 百分比 | 退款时预先扣除的手续费 |
 
 4. 在 [Stripe Dashboard → Developers → Webhooks](https://dashboard.stripe.com/webhooks) 添加端点：

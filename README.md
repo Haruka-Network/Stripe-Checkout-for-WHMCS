@@ -41,6 +41,7 @@ modules/gateways/
    | Webhook Signing Secret | The endpoint's `whsec_...` |
    | Presentment Currency | Currency charged on Stripe; must be supported by your Stripe account |
    | Exchange Rate Source | Data source for converting the invoice currency into the presentment currency |
+   | Statement Descriptor Suffix | Dynamic suffix shown on the cardholder's statement after your Stripe descriptor prefix (`{invoice}` is replaced with the invoice id); leave empty for the account default |
    | Refund Fixed / Percentage Fee | Fees withheld from refunds |
 
 4. Add a webhook endpoint in the [Stripe Dashboard → Developers → Webhooks](https://dashboard.stripe.com/webhooks):
