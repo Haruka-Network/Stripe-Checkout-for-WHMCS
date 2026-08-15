@@ -70,13 +70,14 @@ class Config
      * Full statement descriptor override, shown on the customer's statement
      * in place of the account's default descriptor.
      *
-     * Stripe only accepts statement_descriptor for non-card charges — with
-     * card payment methods enabled on Checkout, Stripe rejects the session —
-     * so this must stay empty unless the account offers non-card methods
-     * only (e.g. Alipay / WeChat Pay). The configured template may contain
-     * {invoice}, replaced with the invoice id. The result is sanitised to
-     * Stripe's rules: printable ASCII without < > \ ' " *, 5–22 characters
-     * with at least one letter — otherwise '' so nothing is sent.
+     * Non-card charges always accept it. For card charges the behaviour is
+     * account-dependent: accounts on the newer prefix+suffix descriptor
+     * model reject the parameter, while accounts opened before that model
+     * keep the historical full-override behaviour — verify with a test card
+     * before relying on it. The configured template may contain {invoice},
+     * replaced with the invoice id. The result is sanitised to Stripe's
+     * rules: printable ASCII without < > \ ' " *, 5–22 characters with at
+     * least one letter — otherwise '' so nothing is sent.
      *
      * @see https://docs.stripe.com/get-started/account/statement-descriptors
      *

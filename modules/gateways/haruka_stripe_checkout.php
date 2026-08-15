@@ -156,7 +156,7 @@ function haruka_stripe_checkout_config()
             'Type' => 'text',
             'Size' => '22',
             'Default' => '',
-            'Description' => '完整覆盖账户默认的对账单描述，如 Invoice #{invoice}（{invoice} 会替换为账单号），5–22 个 ASCII 字符且需含字母，留空则不发送。⚠ 仅非卡渠道（支付宝 / 微信等）支持：Checkout 启用卡支付时设置此项会被 Stripe 拒绝、无法发起支付',
+            'Description' => '完整覆盖账户默认的对账单描述，如 Invoice #{invoice}（{invoice} 会替换为账单号），5–22 个 ASCII 字符且需含字母，留空则不发送。⚠ 较新开通的 Stripe 账户对卡支付会拒绝此参数（较早开通的账户不受影响），启用卡支付时请先用测试卡验证；非卡渠道（支付宝 / 微信等）均可正常使用',
         ],
         'RefundFixed' => [
             'FriendlyName' => '退款扣除固定金额',

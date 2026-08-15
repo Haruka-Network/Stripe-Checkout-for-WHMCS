@@ -234,8 +234,8 @@ class StripeGateway
             'cancel_url' => $invoiceUrl,
         ];
 
-        // Non-card charges only: Stripe rejects the session when this is set
-        // while card payment methods are enabled (see Config).
+        // Card charges accept this only on accounts with the historical
+        // full-override behaviour; newer accounts reject it (see Config).
         $descriptor = $this->config->statementDescriptor($invoiceId);
         if ($descriptor !== '') {
             $payload['payment_intent_data']['statement_descriptor'] = $descriptor;

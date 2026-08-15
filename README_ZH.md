@@ -41,7 +41,7 @@ modules/gateways/
    | Webhook 签名密钥 | Webhook 端点的 `whsec_...` |
    | 发起交易货币 | 向 Stripe 请求使用的货币，需为 Stripe 账户支持的交易货币 |
    | 汇率数据源 | 账单货币 → 交易货币的换算数据源 |
-   | 账单描述 | 完整覆盖账户默认的对账单描述（`statement_descriptor`，`{invoice}` 替换为账单号），5–22 字符，留空则不发送。⚠ 仅非卡渠道支持，启用卡支付时设置会被 Stripe 拒绝 |
+   | 账单描述 | 完整覆盖账户默认的对账单描述（`statement_descriptor`，`{invoice}` 替换为账单号），5–22 字符，留空则不发送。⚠ 较新开通的 Stripe 账户对卡支付会拒绝此参数（老账户不受影响），启用卡支付时请先用测试卡验证 |
    | 退款扣除固定金额 / 百分比 | 退款时预先扣除的手续费 |
 
 4. 在 [Stripe Dashboard → Developers → Webhooks](https://dashboard.stripe.com/webhooks) 添加端点：
