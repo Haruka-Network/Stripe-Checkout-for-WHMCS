@@ -67,34 +67,35 @@ class Config
     }
 
     /**
-     * Dynamic statement descriptor suffix for card charges, shown on the
-     * cardholder's statement after the account's descriptor prefix.
+     * Full statement descriptor override, shown on the customer's statement
+     * in place of the account's default descriptor.
      *
-     * Cards no longer accept a full statement_descriptor override on the
-     * PaymentIntent (Stripe rejects it), so the suffix is the only safe
-     * per-charge field; non-card methods ignore it. The configured template
-     * may contain {invoice}, replaced with the invoice id. The result is
-     * sanitised to Stripe's rules: printable ASCII without < > \ ' " *,
-     * at most 22 characters, and at least one letter — otherwise ''.
+     * Stripe only accepts statement_descriptor for non-card charges — with
+     * card payment methods enabled on Checkout, Stripe rejects the session —
+     * so this must stay empty unless the account offers non-card methods
+     * only (e.g. Alipay / WeChat Pay). The configured template may contain
+     * {invoice}, replaced with the invoice id. The result is sanitised to
+     * Stripe's rules: printable ASCII without < > \ ' " *, 5–22 characters
+     * with at least one letter — otherwise '' so nothing is sent.
      *
      * @see https://docs.stripe.com/get-started/account/statement-descriptors
      *
      * @param int|string $invoiceId
-     * @return string Sanitised suffix, or '' to leave the account default
+     * @return string Sanitised descriptor, or '' to leave the account default
      */
-    public function statementDescriptorSuffix($invoiceId)
+    public function statementDescriptor($invoiceId)
     {
         $template = trim((string) ($this->params['StatementDescriptor'] ?? ''));
         if ($template === '') {
             return '';
         }
 
-        $suffix = str_replace('{invoice}', (string) $invoiceId, $template);
-        $suffix = preg_replace('/[^\x20-\x7E]/', '', $suffix);
-        $suffix = str_replace(['<', '>', '\\', "'", '"', '*'], '', $suffix);
-        $suffix = trim(substr(trim($suffix), 0, 22));
+        $text = str_replace('{invoice}', (string) $invoiceId, $template);
+        $text = preg_replace('/[^\x20-\x7E]/', '', $text);
+        $text = str_replace(['<', '>', '\\', "'", '"', '*'], '', $text);
+        $text = trim(substr(trim($text), 0, 22));
 
-        return preg_match('/[A-Za-z]/', $suffix) ? $suffix : '';
+        return strlen($text) >= 5 && preg_match('/[A-Za-z]/', $text) ? $text : '';
     }
 
     /**

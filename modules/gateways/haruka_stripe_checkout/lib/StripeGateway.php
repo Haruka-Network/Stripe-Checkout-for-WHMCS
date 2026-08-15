@@ -234,9 +234,11 @@ class StripeGateway
             'cancel_url' => $invoiceUrl,
         ];
 
-        $descriptorSuffix = $this->config->statementDescriptorSuffix($invoiceId);
-        if ($descriptorSuffix !== '') {
-            $payload['payment_intent_data']['statement_descriptor_suffix'] = $descriptorSuffix;
+        // Non-card charges only: Stripe rejects the session when this is set
+        // while card payment methods are enabled (see Config).
+        $descriptor = $this->config->statementDescriptor($invoiceId);
+        if ($descriptor !== '') {
+            $payload['payment_intent_data']['statement_descriptor'] = $descriptor;
         }
         if ($customerEmail !== '') {
             $payload['customer_email'] = $customerEmail;

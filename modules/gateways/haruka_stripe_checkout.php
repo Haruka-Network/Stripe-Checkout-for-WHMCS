@@ -152,11 +152,11 @@ function haruka_stripe_checkout_config()
             'Description' => '汇率数据对比：https://github.com/DyAxy/NewExchangeRatesTable/tree/main/data',
         ],
         'StatementDescriptor' => [
-            'FriendlyName' => '账单描述后缀',
+            'FriendlyName' => '账单描述 (statement_descriptor)',
             'Type' => 'text',
             'Size' => '22',
-            'Default' => 'INV {invoice}',
-            'Description' => '卡类支付显示在持卡人对账单上的动态后缀（statement_descriptor_suffix），跟在 Stripe 后台「Statement descriptor」前缀之后，如 MYSHOP* INV 12345。{invoice} 会替换为账单号；留空则使用账户默认描述。最长 22 个 ASCII 字符且需含字母，非卡支付方式忽略此项',
+            'Default' => '',
+            'Description' => '完整覆盖账户默认的对账单描述，如 Invoice #{invoice}（{invoice} 会替换为账单号），5–22 个 ASCII 字符且需含字母，留空则不发送。⚠ 仅非卡渠道（支付宝 / 微信等）支持：Checkout 启用卡支付时设置此项会被 Stripe 拒绝、无法发起支付',
         ],
         'RefundFixed' => [
             'FriendlyName' => '退款扣除固定金额',
